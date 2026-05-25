@@ -24,6 +24,8 @@ assert.match(payload, /const GLOSSARY = \[/, 'expected generated data to include
 assert.match(payload, /"docLocale": "zh"/, 'expected translated lessons to be marked with docLocale = "zh"');
 assert.match(payload, /"localDocPath": "content\/phases\/00-setup-and-tooling\/01-dev-environment\/docs\/zh.md"/, 'expected translated lessons to point at a local static markdown copy');
 assert.match(payload, /"localEnglishDocPath": "content\/phases\/00-setup-and-tooling\/01-dev-environment\/docs\/en.md"/, 'expected translated lessons to point at a local English markdown copy');
+assert.match(payload, /"localDocPath": "content\/phases\/17-infrastructure-and-production\/01-managed-llm-platforms\/docs\/zh.md"/, 'expected filesystem-discovered translated lessons to point at a local static markdown copy');
+assert.match(payload, /"localEnglishDocPath": "content\/phases\/17-infrastructure-and-production\/01-managed-llm-platforms\/docs\/en.md"/, 'expected filesystem-discovered translated lessons to point at a local English markdown copy');
 
 const localDocPath = path.join(
   tmpDir,
@@ -46,5 +48,27 @@ const localEnglishDocPath = path.join(
   'en.md'
 );
 assert.ok(fs.existsSync(localEnglishDocPath), 'expected zh build to copy source English markdown into content/');
+
+const discoveredLocalDocPath = path.join(
+  tmpDir,
+  'content',
+  'phases',
+  '17-infrastructure-and-production',
+  '01-managed-llm-platforms',
+  'docs',
+  'zh.md'
+);
+assert.ok(fs.existsSync(discoveredLocalDocPath), 'expected zh build to copy translated markdown for filesystem-discovered lessons');
+
+const discoveredLocalEnglishDocPath = path.join(
+  tmpDir,
+  'content',
+  'phases',
+  '17-infrastructure-and-production',
+  '01-managed-llm-platforms',
+  'docs',
+  'en.md'
+);
+assert.ok(fs.existsSync(discoveredLocalEnglishDocPath), 'expected zh build to copy source English markdown for filesystem-discovered lessons');
 
 console.log('static zh site build test passed');

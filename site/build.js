@@ -256,6 +256,174 @@ function parseReadme(content, roadmapStatuses) {
   return phases;
 }
 
+function titleFromSlug(slug) {
+  const acronyms = new Map([
+    ['ai', 'AI'],
+    ['api', 'API'],
+    ['apis', 'APIs'],
+    ['asr', 'ASR'],
+    ['bft', 'BFT'],
+    ['cnn', 'CNN'],
+    ['cnns', 'CNNs'],
+    ['dpo', 'DPO'],
+    ['gpu', 'GPU'],
+    ['gpus', 'GPUs'],
+    ['llm', 'LLM'],
+    ['llms', 'LLMs'],
+    ['mcp', 'MCP'],
+    ['ml', 'ML'],
+    ['nlp', 'NLP'],
+    ['rag', 'RAG'],
+    ['rl', 'RL'],
+    ['sre', 'SRE'],
+    ['tts', 'TTS'],
+  ]);
+
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map(word => acronyms.get(word) || word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function readFilesystemLessonMeta(relPath) {
+  const docPath = path.join(REPO_ROOT, relPath, 'docs', 'en.md');
+  let foundTitle = false;
+  const result = {
+    name: titleFromSlug(path.basename(relPath).replace(/^\d+-/, '')),
+    type: 'Learn',
+    lang: '—',
+  };
+
+  try {
+    const lines = fs.readFileSync(docPath, 'utf8').split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+
+      if (!foundTitle && line.startsWith('# ')) {
+        result.name = line.slice(2).trim();
+        foundTitle = true;
+        continue;
+      }
+
+      const typeMatch = line.match(/^\*\*Type:\*\*\s*(.+)$/);
+      if (typeMatch) {
+        result.type = typeMatch[1].trim() || 'Learn';
+        continue;
+      }
+
+      const langMatch = line.match(/^\*\*Languages?:\*\*\s*(.+)$/);
+      if (langMatch) {
+        const lang = langMatch[1].trim();
+        result.lang = lang === '-' ? '—' : lang || '—';
+      }
+    }
+  } catch (_) {
+    // Keep slug-derived metadata if the doc becomes unreadable.
+  }
+
+  return result;
+}
+
+function discoverFilesystemLessons() {
+  const lessons = [];
+  const phasesDir = path.join(REPO_ROOT, 'phases');
+  if (!fs.existsSync(phasesDir)) return lessons;
+
+  for (const phaseDirName of fs.readdirSync(phasesDir).sort()) {
+    const phaseMatch = phaseDirName.match(/^([0-9]{2})-([a-z0-9-]+)$/);
+    if (!phaseMatch) continue;
+
+    const phaseId = parseInt(phaseMatch[1], 10);
+    const phaseDir = path.join(phasesDir, phaseDirName);
+    for (const lessonDirName of fs.readdirSync(phaseDir).sort()) {
+      const lessonMatch = lessonDirName.match(/^([0-9]{2})-([a-z0-9-]+)$/);
+      if (!lessonMatch) continue;
+
+      const relPath = `phases/${phaseDirName}/${lessonDirName}`;
+      const englishDocPath = path.join(REPO_ROOT, relPath, 'docs', 'en.md');
+      if (!fs.existsSync(englishDocPath)) continue;
+
+      lessons.push({
+        phaseId,
+        phaseName: titleFromSlug(phaseMatch[2]),
+        lessonNumber: parseInt(lessonMatch[1], 10),
+        relPath,
+        ...readFilesystemLessonMeta(relPath),
+      });
+    }
+  }
+
+  return lessons;
+}
+
+function lessonRelPath(lesson) {
+  if (!lesson.url || !lesson.url.startsWith(GITHUB_BASE)) return null;
+  return lesson.url.replace(GITHUB_BASE, '').replace(/\/+$/, '');
+}
+
+function lessonNumber(lesson) {
+  const relPath = lessonRelPath(lesson);
+  if (!relPath) return Number.POSITIVE_INFINITY;
+  const match = relPath.match(/\/([0-9]{2})-[^/]+$/);
+  return match ? parseInt(match[1], 10) : Number.POSITIVE_INFINITY;
+}
+
+function augmentPhasesFromFilesystem(phases, roadmapStatuses) {
+  const phaseById = new Map(phases.map(phase => [phase.id, phase]));
+
+  for (const fsLesson of discoverFilesystemLessons()) {
+    const roadmapKey = `Phase ${fsLesson.phaseId}`;
+    let phase = phaseById.get(fsLesson.phaseId);
+    if (!phase) {
+      phase = {
+        id: fsLesson.phaseId,
+        name: fsLesson.phaseName,
+        status: roadmapStatuses[roadmapKey]?.phaseStatus || 'complete',
+        desc: '',
+        lessons: [],
+      };
+      phases.push(phase);
+      phaseById.set(fsLesson.phaseId, phase);
+    }
+
+    const existingByUrl = phase.lessons.find(lesson => lessonRelPath(lesson) === fsLesson.relPath);
+    if (existingByUrl) continue;
+
+    const existingByNumber = phase.lessons[fsLesson.lessonNumber - 1];
+    const target = existingByNumber && !existingByNumber.url ? existingByNumber : null;
+    const url = GITHUB_BASE + fsLesson.relPath + '/';
+
+    if (target) {
+      target.url = url;
+      if (!target.type) target.type = fsLesson.type;
+      if (!target.lang || target.lang === '—') target.lang = fsLesson.lang;
+      if (target.status === 'planned') target.status = 'complete';
+      continue;
+    }
+
+    phase.lessons.push({
+      name: fsLesson.name,
+      status: 'complete',
+      type: fsLesson.type,
+      lang: fsLesson.lang,
+      url,
+    });
+  }
+
+  phases.sort((a, b) => a.id - b.id);
+  for (const phase of phases) {
+    phase.lessons.sort((a, b) => {
+      const aNumber = lessonNumber(a);
+      const bNumber = lessonNumber(b);
+      if (!Number.isFinite(aNumber) && !Number.isFinite(bNumber)) return 0;
+      if (!Number.isFinite(aNumber)) return 1;
+      if (!Number.isFinite(bNumber)) return -1;
+      return aNumber - bNumber;
+    });
+  }
+}
+
 // ─── Extract lesson summary + keywords from localized lesson docs ─────
 /**
  * Single-pass read of a lesson's docs/<locale>.md, falling back to docs/en.md.
@@ -499,6 +667,7 @@ function build(options) {
 
   console.log('🔍 Parsing README.md...');
   const phases = parseReadme(readme, roadmapStatuses);
+  augmentPhasesFromFilesystem(phases, roadmapStatuses);
 
   console.log('🔍 Parsing glossary/terms.md...');
   const glossaryTerms = parseGlossary(glossary);

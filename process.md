@@ -18,7 +18,7 @@
 | 双语课程页 | 已完成 | 有 `zh.md` 的课程同时显示中文和 English；无译文课程回退英文。 |
 | 本地 Markdown 副本 | 已完成 | 中文构建会复制 `zh.md` 和对应 `en.md` 到 `site/zh/content/`。 |
 | 原 `web/` 目录 | 已处理 | 已删除原 `web/.gitkeep`，原 Web 方向不再作为交付入口。 |
-| Phase 0 前 6 课翻译 | 已完成 | 已由 agent 分批翻译，未使用 API。 |
+| 全部 435 课翻译 | 已完成 | 已由 agent teams 分阶段翻译，未使用外部翻译 API。 |
 | GitHub 仓库 | 已完成 | 已推送到 `mellivora-tech/ai-engineering-from-scratch`。 |
 
 ## 翻译总进度
@@ -26,55 +26,47 @@
 | 指标 | 数量 |
 | --- | ---: |
 | 英文课文总数 `docs/en.md` | 435 |
-| 已有中文课文 `docs/zh.md` | 6 |
-| 未翻译课文 | 429 |
-| 完成比例 | 约 1.4% |
-| 未翻译英文词数估算 | 约 765,488 |
-| 未翻译英文行数估算 | 约 103,711 |
+| 已有中文课文 `docs/zh.md` | 435 |
+| 未翻译课文 | 0 |
+| 完成比例 | 100% |
+| 未翻译英文词数估算 | 0 |
+| 未翻译英文行数估算 | 0 |
 
 ## 分阶段进度
 
 | Phase | 已完成 / 总数 | 剩余 |
 | --- | ---: | ---: |
-| 00-setup-and-tooling | 6 / 12 | 6 |
-| 01-math-foundations | 0 / 22 | 22 |
-| 02-ml-fundamentals | 0 / 18 | 18 |
-| 03-deep-learning-core | 0 / 13 | 13 |
-| 04-computer-vision | 0 / 28 | 28 |
-| 05-nlp-foundations-to-advanced | 0 / 29 | 29 |
-| 06-speech-and-audio | 0 / 17 | 17 |
-| 07-transformers-deep-dive | 0 / 16 | 16 |
-| 08-generative-ai | 0 / 15 | 15 |
-| 09-reinforcement-learning | 0 / 12 | 12 |
-| 10-llms-from-scratch | 0 / 24 | 24 |
-| 11-llm-engineering | 0 / 17 | 17 |
-| 12-multimodal-ai | 0 / 25 | 25 |
-| 13-tools-and-protocols | 0 / 23 | 23 |
-| 14-agent-engineering | 0 / 42 | 42 |
-| 15-autonomous-systems | 0 / 22 | 22 |
-| 16-multi-agent-and-swarms | 0 / 25 | 25 |
-| 17-infrastructure-and-production | 0 / 28 | 28 |
-| 18-ethics-safety-alignment | 0 / 30 | 30 |
-| 19-capstone-projects | 0 / 17 | 17 |
+| 00-setup-and-tooling | 12 / 12 | 0 |
+| 01-math-foundations | 22 / 22 | 0 |
+| 02-ml-fundamentals | 18 / 18 | 0 |
+| 03-deep-learning-core | 13 / 13 | 0 |
+| 04-computer-vision | 28 / 28 | 0 |
+| 05-nlp-foundations-to-advanced | 29 / 29 | 0 |
+| 06-speech-and-audio | 17 / 17 | 0 |
+| 07-transformers-deep-dive | 16 / 16 | 0 |
+| 08-generative-ai | 15 / 15 | 0 |
+| 09-reinforcement-learning | 12 / 12 | 0 |
+| 10-llms-from-scratch | 24 / 24 | 0 |
+| 11-llm-engineering | 17 / 17 | 0 |
+| 12-multimodal-ai | 25 / 25 | 0 |
+| 13-tools-and-protocols | 23 / 23 | 0 |
+| 14-agent-engineering | 42 / 42 | 0 |
+| 15-autonomous-systems | 22 / 22 | 0 |
+| 16-multi-agent-and-swarms | 25 / 25 | 0 |
+| 17-infrastructure-and-production | 28 / 28 | 0 |
+| 18-ethics-safety-alignment | 30 / 30 | 0 |
+| 19-capstone-projects | 17 / 17 | 0 |
 
 ## 已翻译课程
 
-- `phases/00-setup-and-tooling/01-dev-environment/docs/zh.md`
-- `phases/00-setup-and-tooling/02-git-and-collaboration/docs/zh.md`
-- `phases/00-setup-and-tooling/03-gpu-setup-and-cloud/docs/zh.md`
-- `phases/00-setup-and-tooling/04-apis-and-keys/docs/zh.md`
-- `phases/00-setup-and-tooling/05-jupyter-notebooks/docs/zh.md`
-- `phases/00-setup-and-tooling/06-python-environments/docs/zh.md`
+- 全部 `phases/**/docs/en.md` 均已有对应 `docs/zh.md`，共 435 篇。
 
 ## 下一步待办
 
 | 优先级 | 待办 | 验收标准 |
 | --- | --- | --- |
-| P0 | 完成 Phase 0 剩余 6 课翻译 | 07-12 均新增 `docs/zh.md`，中英文双语页可打开。 |
-| P0 | 翻译当前查看的 Phase 03 第一课 `01-the-perceptron` | 页面 `phases/03-deep-learning-core/01-the-perceptron` 显示中文 + English。 |
-| P1 | 按 phase 分批派发 agent 翻译 | 每批互不覆盖文件，翻译后运行结构校验。 |
+| P0 | 抽样人工校对重点章节 | 每个大主题至少抽查 1-2 篇，确认术语、代码块、链接和中英双栏展示正常。 |
 | P1 | 建立术语统一表 | 固定常见译法，如 tensor、gradient、backpropagation、agent、prompt、MCP。 |
-| P1 | 扩展构建测试 | 检查 `docLocale`、`localDocPath`、`localEnglishDocPath` 覆盖范围。 |
 | P2 | 页面 UI 深度汉化 | 课程标题、目录、侧栏中仍来自英文数据的内容逐步补中文字段。 |
 | P2 | 发布站点 | 配置 GitHub Pages 或其他静态托管，确认 `/zh/` 可访问。 |
 
