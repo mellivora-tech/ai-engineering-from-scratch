@@ -15,9 +15,43 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const README_PATH = path.join(REPO_ROOT, 'README.md');
 const ROADMAP_PATH = path.join(REPO_ROOT, 'ROADMAP.md');
 const GLOSSARY_PATH = path.join(REPO_ROOT, 'glossary', 'terms.md');
-const OUTPUT_PATH = path.join(__dirname, 'data.js');
+const DEFAULT_OUTPUT_PATH = path.join(__dirname, 'data.js');
+const DEFAULT_LOCALE = 'en';
+const SUPPORTED_LOCALES = new Set(['en', 'zh']);
 
 const GITHUB_BASE = 'https://github.com/rohitg00/ai-engineering-from-scratch/tree/main/';
+
+function parseArgs(argv) {
+  const options = {
+    locale: DEFAULT_LOCALE,
+    outPath: DEFAULT_OUTPUT_PATH,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--locale') {
+      options.locale = argv[++i];
+    } else if (arg.startsWith('--locale=')) {
+      options.locale = arg.slice('--locale='.length);
+    } else if (arg === '--out') {
+      options.outPath = argv[++i];
+    } else if (arg.startsWith('--out=')) {
+      options.outPath = arg.slice('--out='.length);
+    } else if (arg === '--help' || arg === '-h') {
+      console.log('Usage: node site/build.js [--locale en|zh] [--out path/to/data.js]');
+      process.exit(0);
+    } else {
+      throw new Error(`unknown argument: ${arg}`);
+    }
+  }
+
+  if (!SUPPORTED_LOCALES.has(options.locale)) {
+    throw new Error(`unsupported locale: ${options.locale}`);
+  }
+
+  options.outPath = path.resolve(options.outPath);
+  return options;
+}
 
 // ─── Parse ROADMAP.md for lesson statuses ────────────────────────────
 function parseRoadmap(content) {
@@ -222,9 +256,9 @@ function parseReadme(content, roadmapStatuses) {
   return phases;
 }
 
-// ─── Extract lesson summary + keywords from docs/en.md ───────────────
+// ─── Extract lesson summary + keywords from localized lesson docs ─────
 /**
- * Single-pass read of a lesson's docs/en.md.
+ * Single-pass read of a lesson's docs/<locale>.md, falling back to docs/en.md.
  *
  * Returns:
  *   summary  — first `> blockquote` line (the lesson's one-liner motto).
@@ -236,11 +270,24 @@ function parseReadme(content, roadmapStatuses) {
  * Both fields are empty strings when the file is absent or has no
  * matching content — expected for planned lessons with no docs yet.
  */
-function extractLessonMeta(relPath) {
-  const docPath = path.join(REPO_ROOT, relPath, 'docs', 'en.md');
+function extractLessonMeta(relPath, locale) {
+  const localeOrder = locale === 'en' ? ['en'] : [locale, 'en'];
   const result = { summary: '', keywords: '' };
+  let lines = null;
+
+  for (const candidate of localeOrder) {
+    const docPath = path.join(REPO_ROOT, relPath, 'docs', `${candidate}.md`);
+    try {
+      lines = fs.readFileSync(docPath, 'utf8').split(/\r?\n/);
+      break;
+    } catch (_) {
+      // Try the next locale candidate.
+    }
+  }
+
+  if (!lines) return result;
+
   try {
-    const lines = fs.readFileSync(docPath, 'utf8').split(/\r?\n/);
     const h3s = [];
     for (const raw of lines) {
       const line = raw.trim();
@@ -255,7 +302,7 @@ function extractLessonMeta(relPath) {
     }
     if (h3s.length) result.keywords = h3s.join(' · ');
   } catch (_) {
-    // File absent or unreadable — expected for planned lessons.
+    // Malformed or unreadable content — keep the lesson searchable by title.
   }
   return result;
 }
@@ -389,9 +436,59 @@ function discoverArtifacts() {
   return artifacts;
 }
 
+function assertInside(parent, child) {
+  const parentPath = path.resolve(parent);
+  const childPath = path.resolve(child);
+  if (childPath !== parentPath && !childPath.startsWith(parentPath + path.sep)) {
+    throw new Error(`refusing to write outside ${parentPath}: ${childPath}`);
+  }
+}
+
+function copyLocalizedDocs(phases, locale, outPath) {
+  if (locale === 'en') return 0;
+
+  const outDir = path.dirname(outPath);
+  const contentRoot = path.join(outDir, 'content');
+  assertInside(outDir, contentRoot);
+  fs.rmSync(contentRoot, { recursive: true, force: true });
+
+  let copied = 0;
+  for (const phase of phases) {
+    for (const lesson of phase.lessons) {
+      if (!lesson.url || lesson.docLocale !== locale) continue;
+
+      const relPath = lesson.url.replace(GITHUB_BASE, '').replace(/\/+$/, '');
+      const source = path.join(REPO_ROOT, relPath, 'docs', `${locale}.md`);
+      if (!fs.existsSync(source)) continue;
+
+      const localDocPath = `content/${relPath}/docs/${locale}.md`;
+      const dest = path.join(outDir, ...localDocPath.split('/'));
+      assertInside(contentRoot, dest);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(source, dest);
+      lesson.localDocPath = localDocPath;
+
+      const englishSource = path.join(REPO_ROOT, relPath, 'docs', 'en.md');
+      if (fs.existsSync(englishSource)) {
+        const localEnglishDocPath = `content/${relPath}/docs/en.md`;
+        const englishDest = path.join(outDir, ...localEnglishDocPath.split('/'));
+        assertInside(contentRoot, englishDest);
+        fs.mkdirSync(path.dirname(englishDest), { recursive: true });
+        fs.copyFileSync(englishSource, englishDest);
+        lesson.localEnglishDocPath = localEnglishDocPath;
+      }
+      copied++;
+    }
+  }
+
+  return copied;
+}
+
 // ─── Main build ──────────────────────────────────────────────────────
-function build() {
+function build(options) {
+  const { locale, outPath } = options;
   console.log('📖 Reading source files...');
+  console.log(`🌐 Locale: ${locale}`);
 
   const readme = fs.readFileSync(README_PATH, 'utf8');
   const roadmap = fs.readFileSync(ROADMAP_PATH, 'utf8');
@@ -409,18 +506,22 @@ function build() {
   console.log('🔍 Discovering outputs + Phase 14 missions...');
   const artifacts = discoverArtifacts();
 
-  console.log('📚 Extracting lesson summaries + keywords from docs/en.md...');
+  console.log(`📚 Extracting lesson summaries + keywords from docs/${locale}.md...`);
   let summarized = 0, withKeywords = 0;
   for (const phase of phases) {
     for (const lesson of phase.lessons) {
       if (lesson.url) {
         const relPath = lesson.url.replace(GITHUB_BASE, '').replace(/\/+$/, '');
-        const meta = extractLessonMeta(relPath);
+        const preferredDoc = path.join(REPO_ROOT, relPath, 'docs', `${locale}.md`);
+        lesson.docLocale = locale === 'en' || fs.existsSync(preferredDoc) ? locale : 'en';
+        const meta = extractLessonMeta(relPath, locale);
         if (meta.summary)  { lesson.summary  = meta.summary;  summarized++;   }
         if (meta.keywords) { lesson.keywords = meta.keywords; withKeywords++; }
       }
     }
   }
+
+  const copiedLocalizedDocs = copyLocalizedDocs(phases, locale, outPath);
 
   // Stats
   let totalLessons = 0;
@@ -437,10 +538,15 @@ function build() {
   console.log(`   Summaries: ${summarized}, Keywords: ${withKeywords}`);
   console.log(`   Glossary terms: ${glossaryTerms.length}`);
   console.log(`   Artifacts: ${artifacts.length}`);
+  if (locale !== 'en') {
+    console.log(`   Localized docs copied: ${copiedLocalizedDocs}`);
+  }
 
   // Generate data.js
   const output = `// Auto-generated by build.js — do not edit manually.
 // Last built: ${new Date().toISOString()}
+
+const SITE_LOCALE = ${JSON.stringify(locale)};
 
 const PHASES = ${JSON.stringify(phases, null, 2)};
 
@@ -449,8 +555,9 @@ const GLOSSARY = ${JSON.stringify(glossaryTerms, null, 2)};
 const ARTIFACTS = ${JSON.stringify(artifacts, null, 2)};
 `;
 
-  fs.writeFileSync(OUTPUT_PATH, output, 'utf8');
-  console.log(`\n✅ Generated ${OUTPUT_PATH}`);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, output, 'utf8');
+  console.log(`\n✅ Generated ${outPath}`);
 }
 
-build();
+build(parseArgs(process.argv.slice(2)));
